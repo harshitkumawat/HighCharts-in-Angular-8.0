@@ -1,0 +1,27 @@
+
+<form style="margin-bottom:50px ;" class="container" #userForm="ngForm" (ngSubmit)="onSubmit()">
+    <div class="row justify-content-around">
+    <select class="custom-select col-md-4" name="City_Name" [(ngModel)]="userModel.City_Name"  >
+        <option value="0">Select City</option>
+        <option *ngFor="let city of allcity" value="{{city.id}}">{{city.City_Name}}</option>
+      </select>
+      <select class="custom-select col-md-4" name="Year" [(ngModel)]="userModel.Year">
+        <option value="0">Select Year</option>
+        <option *ngFor="let year of allYear" value="{{year.Year}}">{{year.Year}}</option>
+      </select>
+      <button class="btn btn-primary">Go</button>
+    </div>    
+</form>
+
+<div class="container col-md-12 row justify-content-around" *ngIf="!loading && chartOptions && chartOptions2">
+<highcharts-chart 
+   [Highcharts] = "highcharts2" 
+   [options] = "chartOptions2" 
+   style = "width: 40%; height: 400px; display: block;">
+</highcharts-chart>
+<highcharts-chart 
+   [Highcharts] = "highcharts" 
+   [options] = "chartOptions" 
+   style = "width: 40%; height: 400px; display: block;">
+</highcharts-chart>
+</div>
