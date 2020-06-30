@@ -1,4 +1,4 @@
-export interface CityName{
-    id:number,
-    City_Name: string,
+export interface Name_y{
+    name:string,
+    y: number,
 }

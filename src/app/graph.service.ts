@@ -1,6 +1,6 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { CityName } from './city';
+import { Name_y } from './city';
 import { Observable } from 'rxjs';
 import { catchError } from 'rxjs/operators';
 import { throwError } from 'rxjs';
@@ -26,12 +26,12 @@ export class GraphService {
     return this.http.get(this._url_temp)
                     .pipe(catchError(this.errorHandler));
   }
-  getAverageTemperature(){
-    return this.http.get(this._url_avg_temp)
+  getAverageTemperature():Observable<Name_y[]>{
+    return this.http.get<Name_y[]>(this._url_avg_temp)
                     .pipe(catchError(this.errorHandler));
   }
-  getAverageTemperatureByCity(){
-    return this.http.get(this._url_avg_tempbyCity)
+  getAverageTemperatureByCity():Observable<Name_y[]>{
+    return this.http.get<Name_y[]>(this._url_avg_tempbyCity)
                     .pipe(catchError(this.errorHandler));
   }
   errorHandler(error:HttpErrorResponse){

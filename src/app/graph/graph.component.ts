@@ -3,9 +3,11 @@ import * as Highcharts from 'highcharts';
 import { HttpClient } from '@angular/common/http';
 import { interval, Subscription } from 'rxjs';
 import { GraphService } from '../graph.service';
-import { CityName } from '../city';
 import { map } from 'rxjs/operators';
 import { CityYear } from '../city-year';
+import Drilldown from 'highcharts/modules/drilldown';
+import { Name_y } from '../city';
+
 
 declare var require: any;
 let Boost = require('highcharts/modules/boost');
@@ -16,6 +18,7 @@ Boost(Highcharts);
 noData(Highcharts);
 More(Highcharts);
 noData(Highcharts);
+Drilldown(Highcharts);
 
 @Component({
   selector: 'app-graph',
@@ -24,17 +27,19 @@ noData(Highcharts);
 })
 export class GraphComponent implements OnInit {
 
-  public allcity: CityName;
+  public allcity = []
   public allYear = [];
   public cityid = {};
-  public AverageTempByYear = [];
-  public AverageTempByCity = [];
+  public AverageTempByYear: Name_y[];
+  public AverageTempByCity : Name_y[];
   loading = true;
   userModel = new CityYear('0',0);
   highcharts: any;
   highcharts2:any
   chartOptions2:any;
   chartOptions: any;
+  public drilldown_name;
+  public drilldown_series = []
   ngOnInit(){
    this._graphservice.getCity()
          .subscribe((data:any) =>{ this.allcity = data;
@@ -49,20 +54,28 @@ export class GraphComponent implements OnInit {
 
 
    this._graphservice.getAverageTemperature()
-         .subscribe((data:any[]) => { this.AverageTempByYear = data;
+         .subscribe((data:Name_y[]) => { this.AverageTempByYear = data;
             this.AvgTemperatureYear(data);
          });
 
 
    this._graphservice.getAverageTemperatureByCity()
-         .subscribe((data:any[]) => { this.AverageTempByCity = data;
-            let city = this.AverageTempByCity.map(({ ID }) => parseInt(ID));
-            this.AvgTemperatureCity(data);
+         .subscribe((data:Name_y[]) => { this.AverageTempByCity = data;
+           
+            for(let i in this.AverageTempByCity){
+               this.AverageTempByCity[i].name = this.cityid[this.AverageTempByCity[i].name];
+            }
+            console.log(this.AverageTempByCity);
+            this.AvgTemperatureCity(this.AverageTempByCity);   
          });
    }
 
    AvgTemperatureYear(data){
-         let year =  data.map(({ Year }) => Year);
+         let year =  data.map(({ name }) => name);
+         for(let i in data){
+            data[i].y = parseFloat(data[i].y);
+            data[i].drilldown = true;
+         }
          let name  = '';
          if(year.length==1){
             name = "in "+year;
@@ -74,17 +87,51 @@ export class GraphComponent implements OnInit {
          this.chartOptions = {
             chart: {
                type: 'column',
-               events: {
-                  drilldown : function(e){
-                          console.log('clicked',e); 
-                  },
-              },
+               events:{
+                  drilldown: (function(component){
+                     return function (e: any) { 
+                       component.drilldown_name = e.point.name;
+                       component.drilldown_series = [];
+                       var usermodel = new CityYear("0",component.drilldown_name);
+                       console.log(usermodel);   
+                       component._graphservice.enrollforcityYear(usermodel)
+                       .subscribe(
+                            data => {
+                               for(let i in data){
+                                  data[i].y = parseFloat(data[i].y);
+                                  component.drilldown_series.push([component.cityid[data[i].name],data[i].y])
+                               }
+                               if (!e.seriesOptions) {
+                                 console.log(component.drilldown_series);
+                                  var chart = this, 
+                                  drilldowns = { 
+                                    drilldown_City: {
+                                    name: component.drilldown_name,	
+                                    id:component.drilldown_name,	
+                                    colorByPoint: true,
+                                    data: component.drilldown_series
+                                    },    
+                                    },
+                                 series = drilldowns['drilldown_City'];
+                                 // Show the loading label chart.showLoading('drilldown event called, Loading ...');
+                                 setTimeout(function () { 
+                                    chart.hideLoading(); 
+                                    chart.addSeriesAsDrilldown(e.point, series);
+                                 }, 500);
+                                 }
+                             },
+                            error => console.error('error',error)
+                          );
+                        }
+                 })(this),
+                 
+               },
             },
             title: {
                text: 'Average Temperature '+name
             },
             xAxis:{
-               categories: year,
+               type: 'category',
                crosshair: true        
             },     
             yAxis : {
@@ -106,22 +153,21 @@ export class GraphComponent implements OnInit {
             },
             series: [{
                name: 'Year',
-               data: data.map(({ temperature__avg }) => parseFloat(temperature__avg))
+               colorByPoint: true,
+               data: data
             }],
+            drilldown:{ series:[],}
          };
          this.loading = false;
-      
-   }
-   DrilldownCallbackFunction(e){
-         console.log(e,"Harry");
-   }
+      }
 
    AvgTemperatureCity(data){
-      let cityname = []
+      let cityname = [];
       for(let i in data){
-         cityname.push(this.cityid[data[i].ID]);
+         cityname.push(data[i].name);
+         data[i].y = parseFloat(data[i].y)
+         data[i].drilldown = data[i].name
       }
-      console.log(this.userModel.Year);
       let name = ''
       if(cityname.length!=1){
          name = "By City";
@@ -135,13 +181,55 @@ export class GraphComponent implements OnInit {
       this.highcharts2 = Highcharts;
       this.chartOptions2 = {
          chart: {
-            type: 'column'
+            type: 'column',
+            events:{
+               drilldown: (function(component){
+                  return function (e: any) { 
+                    component.drilldown_name = e.point.name;
+                    component.drilldown_series = [];
+                    for(let i in component.cityid){
+                       if(component.cityid[i]==e.point.name){
+                          var index = i;
+                       }
+                    }
+                    var usermodel = new CityYear(index,-1);   
+                    component._graphservice.enroll(usermodel)
+                    .subscribe(
+                         data => {
+                            for(let i in data){
+                               data[i].y = parseFloat(data[i].y);
+                               component.drilldown_series.push([data[i].name,data[i].y])
+                            }
+                            if (!e.seriesOptions) {                              
+                               var chart = this, 
+                               drilldowns = { 
+                                 drilldown_City: {
+                                 name: component.drilldown_name,	
+                                 id: component.drilldown_name,	
+                                 colorByPoint: true,
+                                 data: component.drilldown_series
+                                 },    
+                                 },
+                              series = drilldowns['drilldown_City'];
+                              // Show the loading label chart.showLoading('drilldown event called, Loading ...');
+                              setTimeout(function () { 
+                                 chart.hideLoading(); 
+                                 chart.addSeriesAsDrilldown(e.point, series);
+                              }, 500);
+                              }
+                          },
+                         error => console.error('error',error)
+                       );
+                     }
+              })(this),
+              
+            },
          },
          title: {
             text: 'Average Temperature '+name
          },
          xAxis:{
-            categories: cityname,
+            type: 'category',
             crosshair: true        
          },     
          yAxis : {
@@ -163,16 +251,24 @@ export class GraphComponent implements OnInit {
          },
          series: [{
             name: 'City',
-            data: data.map(({ temperature__avg }) => parseFloat(temperature__avg))
-         }]
+            colorByPoint: true,
+            data: data
+         }],
+        drilldown: { series:[] }
       };
       this.loading = false;
+      //console.log(this.AverageTempByCity,this.AverageTempByYear);
 
    }
-  constructor(private _graphservice: GraphService) {}
+
+  constructor(private _graphservice: GraphService) {
+     const that = this;
+  }
   onSubmit(){
+    //console.log(this.AverageTempByCity);
      if(this.userModel.City_Name=="0" && this.userModel.Year==0){
       this.AvgTemperatureYear(this.AverageTempByYear);
+      
       this.AvgTemperatureCity(this.AverageTempByCity);
      }
      else if(this.userModel.City_Name=="0"){
@@ -188,6 +284,9 @@ export class GraphComponent implements OnInit {
       this._graphservice.enrollforcity(this.userModel)
       .subscribe(
            data => {
+              for(let i in data){
+                 data[i].name = this.cityid[data[i].name]
+              }
               this.AvgTemperatureCity(data);
             },
            error => console.error('error',error)
@@ -197,6 +296,9 @@ export class GraphComponent implements OnInit {
       this._graphservice.enrollforcityYear(this.userModel)
       .subscribe(
            data => {
+            for(let i in data){
+               data[i].name = this.cityid[data[i].name]
+            }
               this.AvgTemperatureCity(data);
             },
            error => console.error('error',error)
